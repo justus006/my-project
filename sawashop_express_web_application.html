@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SawaShop Express - Modern Kenyan Marketplace & M-PESA Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        mpesa: '#4CAF50',
+                        mpesaDark: '#2E7D32',
+                        brandPrimary: '#0F172A',
+                        brandAccent: '#16A34A',
+                        coinYellow: '#F59E0B'
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Styles & Animation */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+        }
+        .stk-modal-animate {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .coin-glow {
+            filter: drop-shadow(0px 0px 8px rgba(245, 158, 11, 0.6));
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- M-PESA STK Push Modal Simulation -->
+    <div id="stkModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 text-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-emerald-500/30 stk-modal-animate relative overflow-hidden">
+            <div class="absolute -top-12 -right-12 w-28 h-28 bg-emerald-500/20 rounded-full blur-xl"></div>
+            
+            <div class="text-center mb-5">
+                <div class="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-600/40">
+                    <i class="fa-solid fa-mobile-screen-button text-2xl text-white"></i>
+                </div>
+                <span class="inline-block px-3 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs font-bold rounded-full mb-1">M-PESA Express Prompt</span>
+                <h3 class="text-xl font-extrabold text-white">STK Push Triggered</h3>
+                <p class="text-xs text-slate-400 mt-1">Please respond on your mobile handset</p>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-4 text-xs font-mono space-y-2 mb-6">
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span class="text-slate-400">Paybill/Till:</span>
+                    <span class="text-emerald-400 font-bold">522522 (SawaShop)</span>
+                </div>
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span class="text-slate-400">Account No:</span>
+                    <span class="text-white" id="stkAccountNo">ORD-99823</span>
+                </div>
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span class="text-slate-400">Phone:</span>
+                    <span class="text-white" id="stkPhoneDisplay">254700000000</span>
+                </div>
+                <div class="flex justify-between pt-1">
+                    <span class="text-slate-400">Amount payable:</span>
+                    <span class="text-emerald-400 font-bold text-sm" id="stkAmountDisplay">Ksh 0</span>
+                </div>
+            </div>
+
+            <div id="stkStatusArea" class="text-center py-2">
+                <div class="inline-flex items-center gap-2 text-xs text-amber-400 animate-pulse font-medium">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Waiting for PIN input on handset...
+                </div>
+            </div>
+
+            <div class="flex gap-2 mt-4">
+                <button onclick="app.cancelMpesaStk()" class="w-1/3 py-2.5 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg hover:bg-slate-800 transition">Cancel</button>
+                <button onclick="app.simulateUserPinApproval()" class="w-2/3 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-check-circle"></i> [Demo] Enter PIN & Pay
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Announcement Bar -->
+    <div class="bg-slate-900 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-2">
+            <div class="flex items-center gap-4 flex-wrap justify-center md:justify-start">
+                <span class="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                    <i class="fa-solid fa-headset"></i> Nairobi HQ Hotline: <a href="tel:+254715209775" class="underline text-slate-200">+254 715209775</a>
+                </span>
+                <span class="hidden md:inline text-slate-600">|</span>
+                <span class="text-slate-400"><i class="fa-solid fa-location-dot text-red-400"></i> Upper Hill HQ, Kimathi Street Towers, Nairobi</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-amber-400">
+                    <i class="fa-solid fa-coins text-amber-400 coin-glow"></i>
+                    <span>Daily Coins: <strong id="topCoinBalance" class="text-amber-300">0</strong></span>
+                </div>
+                <div id="topUserGreeting" class="text-slate-300 font-medium">Guest</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dynamic Header Navigation -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-3.5 flex items-center justify-between gap-4">
+            <!-- Brand Logo -->
+            <a href="#" onclick="app.navigate('shop')" class="flex items-center gap-2 group">
+                <div class="w-10 h-10 bg-gradient-to-br from-emerald-600 to-green-700 rounded-xl flex items-center justify-center text-white font-extrabold text-xl shadow-md group-hover:scale-105 transition-transform">
+                    S
+                </div>
+                <div>
+                    <div class="font-extrabold text-xl tracking-tight text-slate-900 flex items-center gap-1">
+                        SawaShop <span class="text-emerald-600">Express</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">M-PESA Enabled Kenya Marketplace</div>
+                </div>
+            </a>
+
+            <!-- Search Bar -->
+            <div class="hidden lg:flex flex-1 max-w-md mx-4 relative">
+                <input type="text" id="globalSearchInput" onkeyup="app.handleSearch()" placeholder="Search phones, maize flour, plumbing, cleaning..." class="w-full bg-slate-100 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+            </div>
+
+            <!-- Desktop Nav Links -->
+            <nav class="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
+                <button onclick="app.navigate('shop')" class="hover:text-emerald-600 transition flex items-center gap-1" id="nav-shop">
+                    <i class="fa-solid fa-store"></i> Shop
+                </button>
+                <button onclick="app.navigate('rewards')" class="hover:text-amber-600 transition flex items-center gap-1 relative" id="nav-rewards">
+                    <i class="fa-solid fa-gift text-amber-500"></i> Rewards
+                    <span class="absolute -top-2 -right-3 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full animate-bounce">Free</span>
+                </button>
+                <button onclick="app.navigate('delivery')" class="hover:text-emerald-600 transition flex items-center gap-1" id="nav-delivery">
+                    <i class="fa-solid fa-truck-fast"></i> HQ & Tracking
+                </button>
+                <button onclick="app.navigate('admin')" class="hover:text-indigo-600 transition flex items-center gap-1 text-slate-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100" id="nav-admin">
+                    <i class="fa-solid fa-user-shield text-indigo-600"></i> Admin Portal
+                </button>
+            </nav>
+
+            <!-- Actions Right (Cart & Profile) -->
+            <div class="flex items-center gap-3">
+                <button onclick="app.toggleCartDrawer()" class="relative bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-xl transition flex items-center justify-center">
+                    <i class="fa-solid fa-cart-shopping text-lg"></i>
+                    <span id="cartBadge" class="absolute -top-1.5 -right-1.5 bg-emerald-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">0</span>
+                </button>
+
+                <div id="authNavButtons" class="flex items-center gap-2">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <button onclick="app.toggleMobileMenu()" class="md:hidden text-slate-700 p-2 text-xl focus:outline-none">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Drawer Menu -->
+        <div id="mobileMenu" class="hidden md:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-2 text-sm font-medium">
+            <input type="text" id="mobileSearchInput" onkeyup="app.handleMobileSearch()" placeholder="Search products or services..." class="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2">
+            <button onclick="app.navigate('shop'); app.toggleMobileMenu()" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-100"><i class="fa-solid fa-store mr-2 text-emerald-600"></i> Marketplace Goods & Services</button>
+            <button onclick="app.navigate('rewards'); app.toggleMobileMenu()" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-100"><i class="fa-solid fa-gift mr-2 text-amber-500"></i> Daily Coins Rewards</button>
+            <button onclick="app.navigate('delivery'); app.toggleMobileMenu()" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-100"><i class="fa-solid fa-truck-fast mr-2 text-blue-500"></i> HQ Contact & Delivery Tracking</button>
+            <button onclick="app.navigate('admin'); app.toggleMobileMenu()" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-indigo-50 text-indigo-700"><i class="fa-solid fa-user-shield mr-2 text-indigo-600"></i> Admin Overseer Dashboard</button>
+        </div>
+    </header>
+
+    <!-- MAIN DYNAMIC CONTENT CONTAINER -->
+    <main id="mainContainer" class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+        <!-- Views rendered here via JavaScript -->
+    </main>
+
+    <!-- SHOPPING CART SLIDE-OVER DRAWER -->
+    <div id="cartDrawer" class="fixed inset-0 z-50 overflow-hidden hidden">
+        <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" onclick="app.toggleCartDrawer()"></div>
+        <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+            <div class="w-screen max-w-md bg-white shadow-2xl flex flex-col">
+                <!-- Cart Header -->
+                <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-bag-shopping text-emerald-400 text-xl"></i>
+                        <h2 class="font-bold text-lg">Your Checkout Cart</h2>
+                    </div>
+                    <button onclick="app.toggleCartDrawer()" class="text-slate-400 hover:text-white text-xl p-1">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Cart Items Container -->
+                <div id="cartItemsList" class="flex-1 overflow-y-auto p-4 divide-y divide-slate-100 space-y-3">
+                    <!-- Dynamic Cart Items -->
+                </div>
+
+                <!-- Cart Checkout Footer -->
+                <div class="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+                    <!-- Daily Coin Discount Applied -->
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-coins text-amber-500 text-lg"></i>
+                            <div>
+                                <div class="font-bold text-slate-800">Redeem Daily Coins</div>
+                                <div class="text-slate-500">1 Coin = Ksh 10 Discount</div>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="useCoinsToggle" onchange="app.renderCart()" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+
+                    <!-- Price Calculations -->
+                    <div class="space-y-1.5 text-xs text-slate-600">
+                        <div class="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span font-semibold text-slate-800 id="cartSubtotal">Ksh 0</span>
+                        </div>
+                        <div class="flex justify-between text-amber-600 font-medium">
+                            <span>Coins Discount:</span>
+                            <span id="cartCoinDiscount">- Ksh 0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Countrywide Express Delivery:</span>
+                            <span class="text-slate-800 font-semibold" id="cartDeliveryFee">Ksh 250</span>
+                        </div>
+                        <div class="flex justify-between text-base font-extrabold text-slate-900 border-t border-slate-200 pt-2">
+                            <span>Total Payable:</span>
+                            <span class="text-emerald-600" id="cartTotalPayable">Ksh 0</span>
+                        </div>
+                    </div>
+
+                    <!-- M-PESA Express Button -->
+                    <button onclick="app.initiateCheckoutModal()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-emerald-200"></i> Checkout with M-PESA Express
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHECKOUT DETAILS MODAL -->
+    <div id="checkoutModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <button onclick="app.closeCheckoutModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <h3 class="text-xl font-bold text-slate-900 mb-1">M-PESA Delivery & Payment</h3>
+            <p class="text-xs text-slate-500 mb-4">Complete your shipping address across all 47 counties</p>
+
+            <form id="checkoutForm" onsubmit="app.processMpesaPayment(event)" class="space-y-4 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Full Name</label>
+                    <input type="text" id="custFullName" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">M-PESA Phone Number (To receive STK Push)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">+254</span>
+                        <input type="tel" id="custMpesaPhone" placeholder="712345678" required pattern="^(254|0)?[71][0-9]{8}$" class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-12 p-2.5 text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <span class="text-[10px] text-slate-400 mt-0.5 block">Format: 07XXXXXXXX or 2547XXXXXXXX</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">County (Kenya 47)</label>
+                        <select id="custCounty" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="Nairobi">Nairobi</option>
+                            <option value="Mombasa">Mombasa</option>
+                            <option value="Kisumu">Kisumu</option>
+                            <option value="Nakuru">Nakuru</option>
+                            <option value="Uasin Gishu (Eldoret)">Uasin Gishu (Eldoret)</option>
+                            <option value="Kiambu">Kiambu</option>
+                            <option value="Machakos">Machakos</option>
+                            <option value="Meru">Meru</option>
+                            <option value="Nyeri">Nyeri</option>
+                            <option value="Kajiado">Kajiado</option>
+                            <option value="Kilifi">Kilifi</option>
+                            <option value="Garissa">Garissa</option>
+                            <option value="Kakamega">Kakamega</option>
+                            <option value="Kisii">Kisii</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Town / Estate</label>
+                        <input type="text" id="custTown" placeholder="e.g. Westlands, Pipeline, Kapsoya" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Specific Physical Delivery Building / House No.</label>
+                    <textarea id="custAddressNote" rows="2" placeholder="e.g., Gate 4, Green Court Apartments, House B12" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                </div>
+
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-slate-700 space-y-1">
+                    <div class="flex justify-between font-extrabold text-slate-900 text-sm">
+                        <span>Final M-PESA Payable:</span>
+                        <span class="text-emerald-600" id="modalPayableTotal">Ksh 0</span>
+                    </div>
+                    <p class="text-[10px] text-slate-500">An STK prompt will pop up on the specified Safaricom line immediately after clicking below.</p>
+                </div>
+
+                <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-paper-plane"></i> Send M-PESA Prompt Now
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- AUTHENTICATION MODAL (LOGIN / REGISTER) -->
+    <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl relative border border-slate-100">
+            <button onclick="app.closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <!-- Modal Tab Switch -->
+            <div class="flex border-b border-slate-200 mb-4">
+                <button id="tabLogin" onclick="app.switchAuthTab('login')" class="flex-1 pb-2 font-bold text-sm border-b-2 border-emerald-600 text-emerald-600">Login</button>
+                <button id="tabRegister" onclick="app.switchAuthTab('register')" class="flex-1 pb-2 font-bold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-600">Register Account</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" onsubmit="app.handleLogin(event)" class="space-y-3.5 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Phone Number or Email</label>
+                    <input type="text" id="loginId" required placeholder="0712345678 or john@gmail.com" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Password</label>
+                    <input type="password" id="loginPass" required placeholder="••••••••" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition shadow-md shadow-emerald-600/20">
+                    Sign In to Account
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" onsubmit="app.handleRegister(event)" class="space-y-3 text-xs hidden">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Full Name</label>
+                    <input type="text" id="regName" required placeholder="e.g. Wanjiku Kamau" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">M-PESA Phone Number</label>
+                    <input type="tel" id="regPhone" required placeholder="0712345678" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Email Address</label>
+                    <input type="email" id="regEmail" required placeholder="wanjiku@gmail.com" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Password</label>
+                    <input type="password" id="regPass" required placeholder="••••••••" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div class="bg-amber-50 border border-amber-200 p-2 rounded-lg text-amber-800 text-[11px] flex items-center gap-1.5">
+                    <i class="fa-solid fa-gift text-amber-500"></i> New accounts get <b>+2 FREE Daily Coins</b> instantly!
+                </div>
+                <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition shadow-md shadow-emerald-600/20">
+                    Create SawaShop Account
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 text-slate-400 text-xs mt-16 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div class="space-y-3">
+                <div class="flex items-center gap-2 text-white font-extrabold text-lg">
+                    <div class="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center text-white text-sm">S</div>
+                    SawaShop Express
+                </div>
+                <p class="text-slate-400 leading-relaxed">Kenya's premier digital market for quality physical products & doorstep home services. Powered by instant Safaricom M-PESA payments.</p>
+                <div class="flex items-center gap-3 text-slate-300 text-base">
+                    <i class="fa-brands fa-facebook hover:text-emerald-400 cursor-pointer"></i>
+                    <i class="fa-brands fa-x-twitter hover:text-emerald-400 cursor-pointer"></i>
+                    <i class="fa-brands fa-instagram hover:text-emerald-400 cursor-pointer"></i>
+                    <i class="fa-brands fa-whatsapp hover:text-emerald-400 cursor-pointer"></i>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="text-white font-bold text-sm mb-3">Quick Navigation</h4>
+                <ul class="space-y-2">
+                    <li><a href="#" onclick="app.navigate('shop')" class="hover:text-emerald-400 transition">Marketplace Goods & Services</a></li>
+                    <li><a href="#" onclick="app.navigate('rewards')" class="hover:text-amber-400 transition">Daily Coin Spin & Claim</a></li>
+                    <li><a href="#" onclick="app.navigate('delivery')" class="hover:text-emerald-400 transition">Parcel Hubs & Tracking</a></li>
+                    <li><a href="#" onclick="app.navigate('admin')" class="hover:text-indigo-400 transition">Overseer Admin Login</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="text-white font-bold text-sm mb-3">47 Counties Express Hubs</h4>
+                <ul class="space-y-2 text-slate-400">
+                    <li><i class="fa-solid fa-location-pin text-emerald-500 mr-1.5"></i> Nairobi HQ: Kimathi Street</li>
+                    <li><i class="fa-solid fa-location-pin text-emerald-500 mr-1.5"></i> Mombasa Hub: Nyali Mall Depot</li>
+                    <li><i class="fa-solid fa-location-pin text-emerald-500 mr-1.5"></i> Kisumu Hub: Oginga Odinga St</li>
+                    <li><i class="fa-solid fa-location-pin text-emerald-500 mr-1.5"></i> Eldoret Hub: Uganda Road Hub</li>
+                </ul>
+            </div>
+
+            <div class="space-y-3">
+                <h4 class="text-white font-bold text-sm">M-PESA Payment Verified</h4>
+                <div class="bg-slate-800 border border-slate-700 p-3 rounded-xl space-y-2">
+                    <div class="flex items-center gap-2 text-emerald-400 font-bold">
+                        <i class="fa-solid fa-shield-check text-lg"></i> Official Paybill: 522522
+                    </div>
+                    <p class="text-[11px] text-slate-400">Instant STK Push prompts sent directly to your Safaricom mobile line.</p>
+                </div>
+                <div class="text-[11px] text-slate-500">© 2026 SawaShop Express Ltd. All rights reserved.</div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- MAIN JAVASCRIPT APPLICATION CORE -->
+    <script>
+        /**
+         * SawaShop Express Single File Logic Engine
+         * LocalStorage Backend System + Dynamic Views + M-PESA STK Simulation
+         */
+
+        // Initial Mock Database Seed Data
+        const INITIAL_PRODUCTS = [
+            { id: 'p1', title: 'Samsung Galaxy A24 (128GB)', category: 'Goods', type: 'Electronics', price: 24500, coins: 2, image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=600&q=80', description: 'Dual SIM, Super AMOLED, Fast Charging, Official Kenya Warranty.', stock: true },
+            { id: 'p2', title: 'Asha Organic Maize Meal (10kg)', category: 'Goods', type: 'Fashion & Groceries', price: 1350, coins: 1, image: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=600&q=80', description: 'Premium grade Grade 1 fortified maize flour.', stock: true },
+            { id: 'p3', title: 'Professional Home Deep Cleaning Service', category: 'Services', type: 'Home & Living', price: 3500, coins: 3, image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=600&q=80', description: 'Full home disinfection, sofa wash, carpet steaming. 3-hour session.', stock: true },
+            { id: 'p4', title: '2000W Solar Inverter Generator', category: 'Goods', type: 'Electronics', price: 32000, coins: 4, image: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=600&q=80', description: 'Backup power station with lithium batteries for home blackouts.', stock: true },
+            { id: 'p5', title: 'Emergency Plumbing Repair Service', category: 'Services', type: 'Maintenance', price: 2000, coins: 2, image: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&w=600&q=80', description: 'Licensed plumber doorstep response within 45 mins in Nairobi/Eldoret/Mombasa.', stock: true },
+            { id: 'p6', title: 'Luxury Leather Handbag & Wallet Set', category: 'Goods', type: 'Fashion & Groceries', price: 4200, coins: 1, image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=80', description: 'Handcrafted genuine leather design with gold zip accents.', stock: true }
+        ];
+
+        const INITIAL_ORDERS = [
+            { id: 'ORD-88219', customerName: 'Juma Omondi', phone: '254711223344', items: 'Samsung Galaxy A24', totalAmount: 24500, county: 'Nairobi', status: 'In Transit', mpesaReceipt: 'QKH8923KL1', date: '2026-10-01' },
+            { id: 'ORD-77102', customerName: 'Amina Mohamed', phone: '254722998877', items: 'Home Cleaning Service', totalAmount: 3500, county: 'Mombasa', status: 'Delivered', mpesaReceipt: 'QKH1290AX4', date: '2026-09-30' }
+        ];
+
+        class AppEngine {
+            constructor() {
+                this.initializeDatabase();
+                this.currentView = 'shop';
+                this.cart = [];
+                this.filterCategory = 'All';
+                this.searchQuery = '';
+                this.activePendingOrder = null;
+                this.initListeners();
+            }
+
+            initializeDatabase() {
+                if (!localStorage.getItem('sawashop_products')) {
+                    localStorage.setItem('sawashop_products', JSON.stringify(INITIAL_PRODUCTS));
+                }
+                if (!localStorage.getItem('sawashop_orders')) {
+                    localStorage.setItem('sawashop_orders', JSON.stringify(INITIAL_ORDERS));
+                }
+                if (!localStorage.getItem('sawashop_user')) {
+                    // Default user session
+                    const defaultUser = {
+                        name: 'Wanjiku Kamau',
+                        phone: '0712345678',
+                        email: 'wanjiku@gmail.com',
+                        county: 'Nairobi',
+                        town: 'Kilimani',
+                        coins: 3,
+                        lastClaimDate: null,
+                        role: 'customer' // 'customer' or 'admin'
+                    };
+                    localStorage.setItem('sawashop_user', JSON.stringify(defaultUser));
+                }
+            }
+
+            // Getters for DB
+            getProducts() { return JSON.parse(localStorage.getItem('sawashop_products') || '[]'); }
+            saveProducts(prods) { localStorage.setItem('sawashop_products', JSON.stringify(prods)); }
+
+            getOrders() { return JSON.parse(localStorage.getItem('sawashop_orders') || '[]'); }
+            saveOrders(orders) { localStorage.setItem('sawashop_orders', JSON.stringify(orders)); }
+
+            getUser() { return JSON.parse(localStorage.getItem('sawashop_user')); }
+            saveUser(usr) { localStorage.setItem('sawashop_user', JSON.stringify(usr)); }
+
+            initListeners() {
+                window.addEventListener('DOMContentLoaded', () => {
+                    this.updateTopBar();
+                    this.renderView('shop');
+                });
+            }
+
+            updateTopBar() {
+                const user = this.getUser();
+                document.getElementById('topCoinBalance').innerText = user ? user.coins : 0;
+                
+                const greetingEl = document.getElementById('topUserGreeting');
+                const authBtnsEl = document.getElementById('authNavButtons');
+
+                if (user) {
+                    greetingEl.innerHTML = `<span class="text-slate-400">Jambo,</span> <strong class="text-emerald-400">${user.name}</strong> (${user.role === 'admin' ? 'Admin' : 'Customer'})`;
+                    
+                    authBtnsEl.innerHTML = `
+                        <button onclick="app.navigate('account')" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center gap-1">
+                            <i class="fa-solid fa-user-circle text-emerald-600"></i> Account
+                        </button>
+                        <button onclick="app.logout()" class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                        </button>
+                    `;
+                } else {
+                    greetingEl.innerText = 'Guest User';
+                    authBtnsEl.innerHTML = `
+                        <button onclick="app.openAuthModal('login')" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition">Login</button>
+                        <button onclick="app.openAuthModal('register')" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition">Register</button>
+                    `;
+                }
+            }
+
+            navigate(viewName) {
+                this.currentView = viewName;
+                this.renderView(viewName);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            renderView(view) {
+                const main = document.getElementById('mainContainer');
+                
+                // Highlight active nav
+                ['shop', 'rewards', 'delivery', 'admin'].forEach(v => {
+                    const el = document.getElementById(`nav-${v}`);
+                    if (el) {
+                        if (v === view) {
+                            el.classList.add('text-emerald-600', 'font-extrabold');
+                        } else {
+                            el.classList.remove('text-emerald-600', 'font-extrabold');
+                        }
+                    }
+                });
+
+                switch(view) {
+                    case 'shop':
+                        this.renderShopView(main);
+                        break;
+                    case 'rewards':
+                        this.renderRewardsView(main);
+                        break;
+                    case 'delivery':
+                        this.renderDeliveryView(main);
+                        break;
+                    case 'account':
+                        this.renderAccountView(main);
+                        break;
+                    case 'admin':
+                        this.renderAdminView(main);
+                        break;
+                    default:
+                        this.renderShopView(main);
+                }
+            }
+
+            renderShopView(container) {
+                const products = this.getProducts().filter(p => {
+                    const matchesCategory = this.filterCategory === 'All' || p.category === this.filterCategory;
+                    const matchesSearch = p.title.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                                          p.description.toLowerCase().includes(this.searchQuery.toLowerCase());
+                    return matchesCategory && matchesSearch;
+                });
+
+                container.innerHTML = `
+                    <!-- Hero Banner -->
+                    <div class="relative bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 rounded-3xl p-6 md:p-10 mb-8 text-white overflow-hidden shadow-xl border border-slate-800">
+                        <div class="absolute -right-10 -bottom-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl"></div>
+                        <div class="relative z-10 max-w-2xl space-y-4">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                                <i class="fa-solid fa-bolt"></i> Express Kenya-wide Delivery
+                            </span>
+                            <h1 class="text-3xl md:text-5xl font-black tracking-tight leading-tight">
+                                Buy Goods & Book Home Services via <span class="text-emerald-400">M-PESA</span>
+                            </h1>
+                            <p class="text-slate-300 text-sm md:text-base leading-relaxed">
+                                Get genuine electronics, fashion, groceries or book verified plumbers & cleaning pros. Earn daily coins on every login to enjoy extra discounts!
+                            </p>
+                            <div class="pt-2 flex flex-wrap gap-3">
+                                <button onclick="app.setCategoryFilter('Goods')" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition shadow-lg shadow-emerald-600/30 flex items-center gap-2">
+                                    <i class="fa-solid fa-box font-normal"></i> Shop Physical Goods
+                                </button>
+                                <button onclick="app.setCategoryFilter('Services')" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl font-bold text-xs transition flex items-center gap-2">
+                                    <i class="fa-solid fa-wrench"></i> Book On-Demand Services
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Category & Filter Controls -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl font-black text-slate-900">Explore Catalog</h2>
+                            <p class="text-xs text-slate-500">Showing all available products and services in Kenya</p>
+                        </div>
+
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="app.setCategoryFilter('All')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${this.filterCategory === 'All' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}">
+                                All Catalog
+                            </button>
+                            <button onclick="app.setCategoryFilter('Goods')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${this.filterCategory === 'Goods' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}">
+                                Physical Goods
+                            </button>
+                            <button onclick="app.setCategoryFilter('Services')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${this.filterCategory === 'Services' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}">
+                                Professional Services
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Products Grid -->
+                    ${products.length === 0 ? `
+                        <div class="text-center py-16 bg-white rounded-2xl border border-slate-200 p-8">
+                            <i class="fa-solid fa-box-open text-4xl text-slate-300 mb-3"></i>
+                            <h3 class="font-bold text-slate-700">No items found matching criteria</h3>
+                            <p class="text-xs text-slate-400 mt-1">Try resetting filters or typing another search term.</p>
+                            <button onclick="app.setCategoryFilter('All')" class="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg">Reset Filters</button>
+                        </div>
+                    ` : `
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            ${products.map(p => `
+                                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col group">
+                                    <div class="relative h-48 bg-slate-100 overflow-hidden">
+                                        <img src="${p.image}" alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" onerror="this.src='https://placehold.co/600x400/0f172a/ffffff?text=SawaShop+Item'">
+                                        <span class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur text-white text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
+                                            ${p.category}
+                                        </span>
+                                        <span class="absolute top-3 right-3 bg-amber-500 text-white text-[10px] font-extrabold px-2 py-1 rounded-md flex items-center gap-1 shadow">
+                                            <i class="fa-solid fa-coins"></i> Max ${p.coins} Coin Disc
+                                        </span>
+                                    </div>
+                                    <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+                                        <div>
+                                            <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1">${p.type}</div>
+                                            <h3 class="font-extrabold text-slate-900 text-base group-hover:text-emerald-600 transition line-clamp-1">${p.title}</h3>
+                                            <p class="text-xs text-slate-500 mt-1 line-clamp-2">${p.description}</p>
+                                        </div>
+
+                                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                                            <div>
+                                                <div class="text-xs text-slate-400">Price</div>
+                                                <div class="text-lg font-black text-slate-900">Ksh ${p.price.toLocaleString()}</div>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <button onclick="app.addToCart('${p.id}')" class="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl transition font-bold text-xs" title="Add to Cart">
+                                                    <i class="fa-solid fa-cart-plus text-base"></i>
+                                                </button>
+                                                <button onclick="app.quickBuyMpesa('${p.id}')" class="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-1">
+                                                    <i class="fa-solid fa-mobile-screen"></i> M-PESA
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `}
+                `;
+            }
+
+            renderRewardsView(container) {
+                const user = this.getUser();
+                
+                container.innerHTML = `
+                    <div class="max-w-3xl mx-auto space-y-6">
+                        <!-- Rewards Header -->
+                        <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-3xl p-6 md:p-8 text-white shadow-xl text-center relative overflow-hidden">
+                            <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-xl"></div>
+                            <div class="w-20 h-20 bg-white/20 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-4 border border-white/30 shadow-inner">
+                                <i class="fa-solid fa-coins text-4xl text-amber-200 coin-glow"></i>
+                            </div>
+                            <h1 class="text-2xl md:text-4xl font-black">Daily Coins Reward Hub</h1>
+                            <p class="text-amber-100 text-xs md:text-sm mt-2 max-w-md mx-auto">
+                                Log in daily to claim up to 4 FREE coins! Use coins at checkout to receive direct discount vouchers on your purchases.
+                            </p>
+
+                            <div class="mt-6 inline-flex items-center gap-3 bg-slate-900/40 backdrop-blur px-6 py-3 rounded-2xl border border-white/20">
+                                <div class="text-left">
+                                    <div class="text-[10px] text-amber-200 font-bold uppercase tracking-wider">Your Active Balance</div>
+                                    <div class="text-2xl font-black text-white flex items-center gap-2">
+                                        <i class="fa-solid fa-coins text-amber-400"></i>
+                                        <span id="rewardCoinDisplay">${user ? user.coins : 0}</span> Coins
+                                    </div>
+                                </div>
+                                <div class="h-8 w-px bg-white/20"></div>
+                                <div class="text-left text-xs text-amber-100">
+                                    <div>1 Coin = <strong>Ksh 10 Discount</strong></div>
+                                    <div class="text-[10px] opacity-80">Valid for 30 days</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Spin / Claim Daily Box -->
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm text-center">
+                            <h3 class="text-lg font-bold text-slate-900 mb-1">Claim Today's Lucky Bonus</h3>
+                            <p class="text-xs text-slate-500 mb-6">Guaranteed 1 to 4 coins awarded per 24 hours</p>
+
+                            <div class="w-32 h-32 bg-amber-50 rounded-full border-4 border-amber-400 border-dashed mx-auto flex items-center justify-center relative mb-6">
+                                <i class="fa-solid fa-gift text-5xl text-amber-500 animate-bounce"></i>
+                            </div>
+
+                            <button onclick="app.claimDailyCoins()" class="px-8 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-amber-500/30 transition transform active:scale-95">
+                                <i class="fa-solid fa-hand-holding-dollar mr-1"></i> Claim Daily Reward
+                            </button>
+                            <p class="text-[11px] text-slate-400 mt-3" id="rewardCooldownNote">Click above to unlock your daily gift!</p>
+                        </div>
+
+                        <!-- Rewards FAQ -->
+                        <div class="bg-slate-100 rounded-2xl p-5 border border-slate-200 space-y-3">
+                            <h4 class="font-bold text-sm text-slate-800">How Daily Coins Work:</h4>
+                            <ul class="text-xs text-slate-600 space-y-2 list-disc pl-4">
+                                <li>Every customer account earns between 1 and 4 coins every calendar day.</li>
+                                <li>Toggle "Redeem Daily Coins" inside your Shopping Cart checkout screen.</li>
+                                <li>Each coin deducts Ksh 10 directly off your final M-PESA payment payload.</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+
+            claimDailyCoins() {
+                const user = this.getUser();
+                if (!user) {
+                    this.toast('Please login or create an account first to claim coins!', 'warning');
+                    this.openAuthModal('login');
+                    return;
+                }
+
+                const today = new Date().toISOString().split('T')[0];
+                if (user.lastClaimDate === today) {
+                    this.toast('You have already claimed today\'s daily coins! Check back tomorrow.', 'warning');
+                    return;
+                }
+
+                // Random reward less than 5 (i.e. 1, 2, 3, or 4)
+                const coinsAwarded = Math.floor(Math.random() * 4) + 1;
+                user.coins += coinsAwarded;
+                user.lastClaimDate = today;
+                this.saveUser(user);
+
+                this.updateTopBar();
+                document.getElementById('rewardCoinDisplay').innerText = user.coins;
+                
+                this.toast(`🎉 Congratulations! You won +${coinsAwarded} Daily Coins!`, 'success');
+                document.getElementById('rewardCooldownNote').innerText = '✅ Reward claimed for today! Return tomorrow for more.';
+            }
+
+            renderDeliveryView(container) {
+                container.innerHTML = `
+                    <div class="space-y-8 max-w-6xl mx-auto">
+                        <!-- Delivery Tracking Widget -->
+                        <div class="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800">
+                            <div class="max-w-xl space-y-3">
+                                <span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold rounded-full uppercase">Countrywide Tracking</span>
+                                <h2 class="text-2xl font-black">Track Your Parcel Delivery</h2>
+                                <p class="text-xs text-slate-300">Enter your order ID (e.g., ORD-88219) or M-PESA confirmation code to view parcel location.</p>
+                                
+                                <div class="flex gap-2 pt-2">
+                                    <input type="text" id="trackingInput" placeholder="Enter Order ID or M-PESA Ref..." class="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white w-full focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    <button onclick="app.trackParcel()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-600/30">Track</button>
+                                </div>
+                            </div>
+                            <div id="trackingResult" class="mt-4 hidden p-4 bg-slate-800/90 rounded-xl border border-slate-700 text-xs space-y-2">
+                                <!-- Track result -->
+                            </div>
+                        </div>
+
+                        <!-- 47 Counties Coverage Map Hubs -->
+                        <div>
+                            <h3 class="text-xl font-black text-slate-900 mb-2">Kenya Regional Logistics Hubs</h3>
+                            <p class="text-xs text-slate-500 mb-6">Same-day delivery in Nairobi; 24-48 hours delivery across all 47 counties.</p>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                                    <div class="w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold">
+                                        <i class="fa-solid fa-city"></i>
+                                    </div>
+                                    <h4 class="font-bold text-slate-900">Nairobi & Central Region</h4>
+                                    <p class="text-xs text-slate-500">Kimathi Street HQ, Upper Hill, Thika, Nyeri, Kiambu, Machakos.</p>
+                                    <div class="text-[11px] font-bold text-emerald-600">Dispatched within 2 Hours</div>
+                                </div>
+
+                                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                                    <div class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold">
+                                        <i class="fa-solid fa-water"></i>
+                                    </div>
+                                    <h4 class="font-bold text-slate-900">Coast Region Hub</h4>
+                                    <p class="text-xs text-slate-500">Nyali Depot, Mombasa CBD, Diani, Kilifi, Malindi.</p>
+                                    <div class="text-[11px] font-bold text-emerald-600">Overnight Express Delivery</div>
+                                </div>
+
+                                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                                    <div class="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center font-bold">
+                                        <i class="fa-solid fa-mountain-sun"></i>
+                                    </div>
+                                    <h4 class="font-bold text-slate-900">Rift Valley & Western Hub</h4>
+                                    <p class="text-xs text-slate-500">Eldoret Uganda Road Depot, Nakuru, Kisumu, Kakamega.</p>
+                                    <div class="text-[11px] font-bold text-emerald-600">Daily Regional Fleet</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Headquarters Form -->
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="space-y-4">
+                                <span class="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full">Contact Headquarters</span>
+                                <h3 class="text-2xl font-extrabold text-slate-900">Get in Touch with Us</h3>
+                                <p class="text-xs text-slate-500">Have questions about an order or want to list your services? Our Nairobi customer support team is available 24/7.</p>
+
+                                <div class="space-y-3 text-xs text-slate-700 pt-2">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-phone"></i></div>
+                                        <div><strong>Hotline:</strong> +254 700 000 000 / +254 711 000 111</div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-envelope"></i></div>
+                                        <div><strong>Email:</strong> support@sawashop.co.ke</div>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-location-dot"></i></div>
+                                        <div><strong>Headquarters:</strong> Kimathi Street Towers, 4th Floor, Nairobi, Kenya</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <form onsubmit="app.submitContactForm(event)" class="space-y-3 text-xs bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                <h4 class="font-bold text-slate-800 text-sm mb-1">Send Direct Message</h4>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Your Name</label>
+                                    <input type="text" required placeholder="Maina Njuguna" class="w-full bg-white border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Phone Number</label>
+                                    <input type="tel" required placeholder="0700000000" class="w-full bg-white border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-slate-700 mb-1">Inquiry / Feedback</label>
+                                    <textarea rows="3" required placeholder="How can our Nairobi team assist you today?" class="w-full bg-white border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                                </div>
+                                <button type="submit" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition">
+                                    Send Message to HQ
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                `;
+            }
+
+            trackParcel() {
+                const query = document.getElementById('trackingInput').value.trim();
+                const resEl = document.getElementById('trackingResult');
+                if (!query) {
+                    this.toast('Please enter an Order ID or M-PESA reference.', 'warning');
+                    return;
+                }
+
+                const orders = this.getOrders();
+                const match = orders.find(o => o.id.toLowerCase() === query.toLowerCase() || (o.mpesaReceipt && o.mpesaReceipt.toLowerCase() === query.toLowerCase()));
+
+                resEl.classList.remove('hidden');
+                if (match) {
+                    resEl.innerHTML = `
+                        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                            <span class="font-bold text-emerald-400">Order ID: ${match.id}</span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px] uppercase">${match.status}</span>
+                        </div>
+                        <div class="text-slate-300"><strong>Customer:</strong> ${match.customerName} (${match.county})</div>
+                        <div class="text-slate-300"><strong>Items:</strong> ${match.items}</div>
+                        <div class="text-slate-300"><strong>M-PESA Ref:</strong> ${match.mpesaReceipt || 'QKH8923KL1'}</div>
+                    `;
+                } else {
+                    resEl.innerHTML = `
+                        <div class="text-red-400 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> No matching order found</div>
+                        <p class="text-slate-400">Please verify the Order ID or try tracking with default demo ID: <strong>ORD-88219</strong></p>
+                    `;
+                }
+            }
+
+            submitContactForm(e) {
+                e.preventDefault();
+                this.toast('Thank you! Your message has been routed to Nairobi Headquarters.', 'success');
+                e.target.reset();
+            }
+
+            renderAccountView(container) {
+                const user = this.getUser();
+                if (!user) {
+                    this.openAuthModal('login');
+                    return;
+                }
+
+                const userOrders = this.getOrders().filter(o => o.phone === user.phone || o.customerName === user.name);
+
+                container.innerHTML = `
+                    <div class="max-w-4xl mx-auto space-y-6">
+                        <!-- Profile Card -->
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div class="flex items-center gap-4">
+                                <div class="w-14 h-14 bg-emerald-100 text-emerald-700 font-black text-2xl rounded-2xl flex items-center justify-center">
+                                    ${user.name.charAt(0)}
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-extrabold text-slate-900">${user.name}</h2>
+                                    <p class="text-xs text-slate-500">${user.email} • ${user.phone}</p>
+                                    <span class="inline-block mt-1 px-2.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-full uppercase">
+                                        Role: ${user.role}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-4 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                                <i class="fa-solid fa-coins text-amber-500 text-2xl"></i>
+                                <div>
+                                    <div class="text-xs text-amber-800 font-medium">Daily Coins Wallet</div>
+                                    <div class="text-xl font-black text-amber-900">${user.coins} Coins</div>
+                                </div>
+                                <button onclick="app.navigate('rewards')" class="ml-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg shadow transition">
+                                    Claim More
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Orders History -->
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                            <h3 class="text-lg font-bold text-slate-900">Your M-PESA Purchase History</h3>
+
+                            ${userOrders.length === 0 ? `
+                                <div class="text-center py-8 text-slate-400 text-xs">
+                                    No past orders found for this user account yet.
+                                </div>
+                            ` : `
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                            <tr>
+                                                <th class="p-3">Order ID</th>
+                                                <th class="p-3">Date</th>
+                                                <th class="p-3">Items</th>
+                                                <th class="p-3">Amount</th>
+                                                <th class="p-3">M-PESA Ref</th>
+                                                <th class="p-3">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            ${userOrders.map(o => `
+                                                <tr class="hover:bg-slate-50">
+                                                    <td class="p-3 font-bold text-slate-900">${o.id}</td>
+                                                    <td class="p-3 text-slate-500">${o.date || '2026-10-01'}</td>
+                                                    <td class="p-3 font-medium text-slate-800">${o.items}</td>
+                                                    <td class="p-3 font-bold text-emerald-600">Ksh ${o.totalAmount.toLocaleString()}</td>
+                                                    <td class="p-3 font-mono text-slate-600">${o.mpesaReceipt || 'QKH8923KL1'}</td>
+                                                    <td class="p-3">
+                                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
+                                                            ${o.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderAdminView(container) {
+                const user = this.getUser();
+                
+                // Protected route simulation
+                if (!user || user.role !== 'admin') {
+                    container.innerHTML = `
+                        <div class="max-w-md mx-auto my-12 bg-white p-8 rounded-2xl border border-slate-200 shadow-xl text-center space-y-4">
+                            <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+                                <i class="fa-solid fa-lock"></i>
+                            </div>
+                            <h2 class="text-xl font-bold text-slate-900">Admin Overseer Portal Access</h2>
+                            <p class="text-xs text-slate-500 leading-relaxed">
+                                You are currently logged in as a standard Customer or Guest. Switch role below to manage operations, post products, and oversee M-PESA orders.
+                            </p>
+                            <button onclick="app.switchToAdminRole()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition">
+                                <i class="fa-solid fa-key mr-1"></i> Switch to Admin Role (Demo Mode)
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const products = this.getProducts();
+                const orders = this.getOrders();
+                const totalRevenue = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+
+                container.innerHTML = `
+                    <div class="space-y-8">
+                        <!-- Admin Header & Switcher -->
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 text-white p-6 rounded-2xl shadow-lg">
+                            <div>
+                                <span class="px-2.5 py-0.5 bg-indigo-500/30 border border-indigo-400 text-indigo-300 text-[10px] font-bold rounded-full uppercase">Super Admin Overseer</span>
+                                <h1 class="text-2xl font-black mt-1">SawaShop Business Overseer Dashboard</h1>
+                                <p class="text-xs text-slate-400">Oversee product inventory, update delivery statuses, and audit M-PESA receipts.</p>
+                            </div>
+                            <button onclick="app.switchToCustomerRole()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold rounded-xl transition">
+                                Switch to Customer Mode
+                            </button>
+                        </div>
+
+                        <!-- Metric Analytics Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Total Sales Revenue</div>
+                                <div class="text-2xl font-black text-emerald-600 mt-1">Ksh ${totalRevenue.toLocaleString()}</div>
+                                <div class="text-[10px] text-slate-500 mt-1"><i class="fa-solid fa-circle-check text-emerald-500"></i> M-PESA Confirmed</div>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Total Orders</div>
+                                <div class="text-2xl font-black text-slate-900 mt-1">${orders.length}</div>
+                                <div class="text-[10px] text-slate-500 mt-1">Across 47 Counties</div>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Active Products/Services</div>
+                                <div class="text-2xl font-black text-slate-900 mt-1">${products.length}</div>
+                                <div class="text-[10px] text-slate-500 mt-1">Live in Catalog</div>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                                <div class="text-xs font-bold text-slate-400 uppercase">Daily Coins Active</div>
+                                <div class="text-2xl font-black text-amber-500 mt-1">${user.coins} Coins</div>
+                                <div class="text-[10px] text-slate-500 mt-1">Issued to logged in user</div>
+                            </div>
+                        </div>
+
+                        <!-- Post New Goods / Service Form -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                            <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-plus-circle text-emerald-600"></i> Post New Good or Service For Sale
+                            </h3>
+
+                            <form onsubmit="app.adminCreateProduct(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">Item Title</label>
+                                    <input type="text" id="adminTitle" required placeholder="e.g. High-Speed WiFi Router" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">Category</label>
+                                    <select id="adminCategory" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                                        <option value="Goods">Goods (Physical Product)</option>
+                                        <option value="Services">Services (On-Demand Service)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">Sub-type</label>
+                                    <input type="text" id="adminType" required placeholder="e.g. Electronics, Home, Plumbing" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">Price (KES)</label>
+                                    <input type="number" id="adminPrice" required placeholder="2500" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">Max Redeemable Coins</label>
+                                    <input type="number" id="adminCoins" required min="0" max="5" value="2" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-slate-700 mb-1">Image URL</label>
+                                    <input type="url" id="adminImage" required placeholder="https://images.unsplash.com/..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                                </div>
+                                <div class="md:col-span-3">
+                                    <label class="block font-bold text-slate-700 mb-1">Detailed Description</label>
+                                    <textarea id="adminDesc" rows="2" required placeholder="Describe product specs or service terms..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5"></textarea>
+                                </div>
+                                <div class="md:col-span-3">
+                                    <button type="submit" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow transition">
+                                        Post Item To SawaShop Catalog
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Orders & Operations Overseer Table -->
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                            <h3 class="text-lg font-bold text-slate-900">M-PESA Transactions & Orders Overseer</h3>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                        <tr>
+                                            <th class="p-3">Order ID</th>
+                                            <th class="p-3">Customer & Phone</th>
+                                            <th class="p-3">Delivery County</th>
+                                            <th class="p-3">Total Paid</th>
+                                            <th class="p-3">M-PESA Ref</th>
+                                            <th class="p-3">Delivery Status</th>
+                                            <th class="p-3">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        ${orders.map(o => `
+                                            <tr class="hover:bg-slate-50">
+                                                <td class="p-3 font-bold text-slate-900">${o.id}</td>
+                                                <td class="p-3">
+                                                    <div class="font-bold text-slate-800">${o.customerName}</div>
+                                                    <div class="text-slate-400 text-[10px]">${o.phone}</div>
+                                                </td>
+                                                <td class="p-3 font-medium text-slate-700">${o.county}</td>
+                                                <td class="p-3 font-bold text-emerald-600">Ksh ${Number(o.totalAmount).toLocaleString()}</td>
+                                                <td class="p-3 font-mono text-slate-600">${o.mpesaReceipt || 'QKH8923KL1'}</td>
+                                                <td class="p-3">
+                                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
+                                                        ${o.status}
+                                                    </span>
+                                                </td>
+                                                <td class="p-3">
+                                                    <button onclick="app.updateOrderStatus('${o.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded border border-slate-300">
+                                                        Toggle Status
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            adminCreateProduct(e) {
+                e.preventDefault();
+                const newP = {
+                    id: 'p' + Date.now(),
+                    title: document.getElementById('adminTitle').value,
+                    category: document.getElementById('adminCategory').value,
+                    type: document.getElementById('adminType').value,
+                    price: Number(document.getElementById('adminPrice').value),
+                    coins: Number(document.getElementById('adminCoins').value),
+                    image: document.getElementById('adminImage').value,
+                    description: document.getElementById('adminDesc').value,
+                    stock: true
+                };
+
+                const products = this.getProducts();
+                products.unshift(newP);
+                this.saveProducts(products);
+
+                this.toast('New product successfully published to store!', 'success');
+                e.target.reset();
+                this.renderAdminView(document.getElementById('mainContainer'));
+            }
+
+            updateOrderStatus(orderId) {
+                const orders = this.getOrders();
+                const match = orders.find(o => o.id === orderId);
+                if (match) {
+                    match.status = match.status === 'Delivered' ? 'In Transit' : 'Delivered';
+                    this.saveOrders(orders);
+                    this.toast(`Order ${orderId} status updated to ${match.status}`, 'info');
+                    this.renderAdminView(document.getElementById('mainContainer'));
+                }
+            }
+
+            switchToAdminRole() {
+                const u = this.getUser() || { name: 'Admin Overseer', phone: '0700000000', coins: 10 };
+                u.role = 'admin';
+                this.saveUser(u);
+                this.updateTopBar();
+                this.navigate('admin');
+                this.toast('Switched session to Super Admin Mode', 'info');
+            }
+
+            switchToCustomerRole() {
+                const u = this.getUser();
+                if (u) {
+                    u.role = 'customer';
+                    this.saveUser(u);
+                }
+                this.updateTopBar();
+                this.navigate('shop');
+                this.toast('Switched session to Customer Mode', 'info');
+            }
+
+            addToCart(productId) {
+                const products = this.getProducts();
+                const product = products.find(p => p.id === productId);
+                if (!product) return;
+
+                const existing = this.cart.find(item => item.id === productId);
+                if (existing) {
+                    existing.qty += 1;
+                } else {
+                    this.cart.push({ ...product, qty: 1 });
+                }
+
+                this.updateCartBadge();
+                this.toast(`Added "${product.title}" to cart!`, 'success');
+            }
+
+            updateCartBadge() {
+                const totalQty = this.cart.reduce((sum, item) => sum + item.qty, 0);
+                document.getElementById('cartBadge').innerText = totalQty;
+            }
+
+            toggleCartDrawer() {
+                const drawer = document.getElementById('cartDrawer');
+                drawer.classList.toggle('hidden');
+                if (!drawer.classList.contains('hidden')) {
+                    this.renderCart();
+                }
+            }
+
+            renderCart() {
+                const cartContainer = document.getElementById('cartItemsList');
+                const user = this.getUser();
+                const useCoins = document.getElementById('useCoinsToggle')?.checked || false;
+
+                if (this.cart.length === 0) {
+                    cartContainer.innerHTML = `
+                        <div class="text-center py-12 text-slate-400 space-y-2">
+                            <i class="fa-solid fa-cart-flatbed text-4xl"></i>
+                            <div class="font-bold">Your cart is empty</div>
+                            <p class="text-xs text-slate-400">Explore products or services to get started</p>
+                        </div>
+                    `;
+                    document.getElementById('cartSubtotal').innerText = 'Ksh 0';
+                    document.getElementById('cartCoinDiscount').innerText = '- Ksh 0';
+                    document.getElementById('cartTotalPayable').innerText = 'Ksh 0';
+                    return;
+                }
+
+                cartContainer.innerHTML = this.cart.map(item => `
+                    <div class="flex items-center gap-3 py-2">
+                        <img src="${item.image}" alt="${item.title}" class="w-14 h-14 object-cover rounded-lg bg-slate-100">
+                        <div class="flex-1 min-w-0">
+                            <h4 class="font-bold text-xs text-slate-900 truncate">${item.title}</h4>
+                            <div class="text-xs text-emerald-600 font-extrabold">Ksh ${item.price.toLocaleString()}</div>
+                        </div>
+                        <div class="flex items-center gap-1 border border-slate-200 rounded-lg p-1 text-xs">
+                            <button onclick="app.adjustCartQty('${item.id}', -1)" class="px-1.5 font-bold hover:bg-slate-100 rounded">-</button>
+                            <span class="px-1.5 font-bold">${item.qty}</span>
+                            <button onclick="app.adjustCartQty('${item.id}', 1)" class="px-1.5 font-bold hover:bg-slate-100 rounded">+</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                const subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                
+                // Coin Discount Logic: 1 Coin = 10 KES
+                let coinDiscount = 0;
+                if (useCoins && user && user.coins > 0) {
+                    const maxCoinsDiscount = user.coins * 10;
+                    coinDiscount = Math.min(subtotal, maxCoinsDiscount);
+                }
+
+                const deliveryFee = 250;
+                const grandTotal = Math.max(0, subtotal - coinDiscount + deliveryFee);
+
+                document.getElementById('cartSubtotal').innerText = `Ksh ${subtotal.toLocaleString()}`;
+                document.getElementById('cartCoinDiscount').innerText = `- Ksh ${coinDiscount.toLocaleString()}`;
+                document.getElementById('cartDeliveryFee').innerText = `Ksh ${deliveryFee.toLocaleString()}`;
+                document.getElementById('cartTotalPayable').innerText = `Ksh ${grandTotal.toLocaleString()}`;
+            }
+
+            adjustCartQty(id, delta) {
+                const item = this.cart.find(i => i.id === id);
+                if (item) {
+                    item.qty += delta;
+                    if (item.qty <= 0) {
+                        this.cart = this.cart.filter(i => i.id !== id);
+                    }
+                }
+                this.updateCartBadge();
+                this.renderCart();
+            }
+
+            quickBuyMpesa(productId) {
+                this.cart = [];
+                this.addToCart(productId);
+                this.toggleCartDrawer();
+                this.initiateCheckoutModal();
+            }
+
+            initiateCheckoutModal() {
+                if (this.cart.length === 0) {
+                    this.toast('Your cart is empty!', 'warning');
+                    return;
+                }
+
+                const user = this.getUser();
+                if (user) {
+                    document.getElementById('custFullName').value = user.name || '';
+                    document.getElementById('custMpesaPhone').value = user.phone || '';
+                }
+
+                const subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                const useCoins = document.getElementById('useCoinsToggle')?.checked || false;
+                let coinDiscount = 0;
+                if (useCoins && user && user.coins > 0) {
+                    coinDiscount = Math.min(subtotal, user.coins * 10);
+                }
+                const grandTotal = Math.max(0, subtotal - coinDiscount + 250);
+
+                document.getElementById('modalPayableTotal').innerText = `Ksh ${grandTotal.toLocaleString()}`;
+                document.getElementById('checkoutModal').classList.remove('hidden');
+            }
+
+            closeCheckoutModal() {
+                document.getElementById('checkoutModal').classList.add('hidden');
+            }
+
+            processMpesaPayment(e) {
+                e.preventDefault();
+                const phone = document.getElementById('custMpesaPhone').value.trim();
+                const name = document.getElementById('custFullName').value.trim();
+                const county = document.getElementById('custCounty').value;
+                const town = document.getElementById('custTown').value;
+
+                // Format phone number to 254...
+                let formattedPhone = phone;
+                if (phone.startsWith('0')) {
+                    formattedPhone = '254' + phone.substring(1);
+                }
+
+                const subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+                const useCoins = document.getElementById('useCoinsToggle')?.checked || false;
+                const user = this.getUser();
+                let coinDiscount = 0;
+                let coinsUsed = 0;
+
+                if (useCoins && user && user.coins > 0) {
+                    coinDiscount = Math.min(subtotal, user.coins * 10);
+                    coinsUsed = Math.ceil(coinDiscount / 10);
+                }
+
+                const grandTotal = Math.max(0, subtotal - coinDiscount + 250);
+                const orderId = 'ORD-' + Math.floor(10000 + Math.random() * 90000);
+
+                this.activePendingOrder = {
+                    id: orderId,
+                    customerName: name,
+                    phone: formattedPhone,
+                    county: county,
+                    town: town,
+                    items: this.cart.map(i => `${i.title} (x${i.qty})`).join(', '),
+                    totalAmount: grandTotal,
+                    coinsUsed: coinsUsed,
+                    status: 'In Transit',
+                    date: new Date().toISOString().split('T')[0]
+                };
+
+                this.closeCheckoutModal();
+
+                // Open STK Push Overlay
+                document.getElementById('stkAccountNo').innerText = orderId;
+                document.getElementById('stkPhoneDisplay').innerText = formattedPhone;
+                document.getElementById('stkAmountDisplay').innerText = `Ksh ${grandTotal.toLocaleString()}`;
+                document.getElementById('stkModal').classList.remove('hidden');
+            }
+
+            simulateUserPinApproval() {
+                const statusArea = document.getElementById('stkStatusArea');
+                statusArea.innerHTML = `
+                    <div class="inline-flex items-center gap-2 text-xs text-emerald-400 font-bold">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Processing PIN with Safaricom M-PESA Gateway...
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    const mpesaRef = 'QKH' + Math.floor(100000 + Math.random() * 900000) + 'KL';
+                    this.activePendingOrder.mpesaReceipt = mpesaRef;
+
+                    // Save Order to LocalStorage
+                    const orders = this.getOrders();
+                    orders.unshift(this.activePendingOrder);
+                    this.saveOrders(orders);
+
+                    // Deduct coins if used
+                    const user = this.getUser();
+                    if (user && this.activePendingOrder.coinsUsed > 0) {
+                        user.coins = Math.max(0, user.coins - this.activePendingOrder.coinsUsed);
+                        this.saveUser(user);
+                        this.updateTopBar();
+                    }
+
+                    // Reset Cart
+                    this.cart = [];
+                    this.updateCartBadge();
+                    this.toggleCartDrawer();
+
+                    document.getElementById('stkModal').classList.add('hidden');
+                    this.toast(`M-PESA Confirmed! ${mpesaRef} Received Ksh ${this.activePendingOrder.totalAmount}`, 'success');
+
+                    // Navigate to account to view order
+                    this.navigate('account');
+                }, 1500);
+            }
+
+            cancelMpesaStk() {
+                document.getElementById('stkModal').classList.add('hidden');
+                this.toast('M-PESA transaction cancelled.', 'info');
+            }
+
+            openAuthModal(tab = 'login') {
+                this.switchAuthTab(tab);
+                document.getElementById('authModal').classList.remove('hidden');
+            }
+
+            closeAuthModal() {
+                document.getElementById('authModal').classList.add('hidden');
+            }
+
+            switchAuthTab(tab) {
+                const tabL = document.getElementById('tabLogin');
+                const tabR = document.getElementById('tabRegister');
+                const formL = document.getElementById('loginForm');
+                const formR = document.getElementById('registerForm');
+
+                if (tab === 'login') {
+                    tabL.className = 'flex-1 pb-2 font-bold text-sm border-b-2 border-emerald-600 text-emerald-600';
+                    tabR.className = 'flex-1 pb-2 font-bold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-600';
+                    formL.classList.remove('hidden');
+                    formR.classList.add('hidden');
+                } else {
+                    tabR.className = 'flex-1 pb-2 font-bold text-sm border-b-2 border-emerald-600 text-emerald-600';
+                    tabL.className = 'flex-1 pb-2 font-bold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-600';
+                    formR.classList.remove('hidden');
+                    formL.classList.add('hidden');
+                }
+            }
+
+            handleLogin(e) {
+                e.preventDefault();
+                const loginId = document.getElementById('loginId').value;
+                const user = {
+                    name: loginId.includes('@') ? loginId.split('@')[0] : 'Kenyan Customer',
+                    phone: loginId.includes('@') ? '0712345678' : loginId,
+                    email: loginId.includes('@') ? loginId : 'customer@sawashop.co.ke',
+                    coins: 3,
+                    role: 'customer'
+                };
+                this.saveUser(user);
+                this.updateTopBar();
+                this.closeAuthModal();
+                this.toast(`Welcome back, ${user.name}!`, 'success');
+                this.renderView(this.currentView);
+            }
+
+            handleRegister(e) {
+                e.preventDefault();
+                const name = document.getElementById('regName').value;
+                const phone = document.getElementById('regPhone').value;
+                const email = document.getElementById('regEmail').value;
+
+                const newUser = {
+                    name: name,
+                    phone: phone,
+                    email: email,
+                    coins: 5, // 3 + 2 free bonus coins
+                    role: 'customer'
+                };
+                this.saveUser(newUser);
+                this.updateTopBar();
+                this.closeAuthModal();
+                this.toast(`Account created! You received +2 FREE Bonus Coins!`, 'success');
+                this.renderView(this.currentView);
+            }
+
+            logout() {
+                localStorage.removeItem('sawashop_user');
+                this.updateTopBar();
+                this.toast('Logged out successfully.', 'info');
+                this.navigate('shop');
+            }
+
+            setCategoryFilter(cat) {
+                this.filterCategory = cat;
+                if (this.currentView !== 'shop') {
+                    this.navigate('shop');
+                } else {
+                    this.renderShopView(document.getElementById('mainContainer'));
+                }
+            }
+
+            handleSearch() {
+                this.searchQuery = document.getElementById('globalSearchInput').value;
+                if (this.currentView !== 'shop') this.navigate('shop');
+                else this.renderShopView(document.getElementById('mainContainer'));
+            }
+
+            handleMobileSearch() {
+                this.searchQuery = document.getElementById('mobileSearchInput').value;
+                if (this.currentView !== 'shop') this.navigate('shop');
+                else this.renderShopView(document.getElementById('mainContainer'));
+            }
+
+            toggleMobileMenu() {
+                document.getElementById('mobileMenu').classList.toggle('hidden');
+            }
+
+            toast(message, type = 'info') {
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                
+                let icon = 'fa-info-circle';
+                let borderCol = 'border-slate-800';
+                if (type === 'success') { icon = 'fa-circle-check text-emerald-400'; borderCol = 'border-emerald-500/50'; }
+                if (type === 'warning') { icon = 'fa-triangle-exclamation text-amber-400'; borderCol = 'border-amber-500/50'; }
+
+                toast.className = `pointer-events-auto bg-slate-900 text-white border ${borderCol} px-4 py-3 rounded-xl shadow-2xl text-xs flex items-center gap-3 transition-all duration-300 transform translate-y-2`;
+                toast.innerHTML = `
+                    <i class="fa-solid ${icon} text-base"></i>
+                    <span class="font-semibold">${message}</span>
+                `;
+
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.classList.add('opacity-0', '-translate-y-2');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3500);
+            }
+        }
+
+        // Initialize Global Single Page App Engine instance
+        const app = new AppEngine();
+    </script>
+</body>
+</html>
